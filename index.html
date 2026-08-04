@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>App Updates Admin</title>
+<style>
+  :root {
+    --purple: #6637D2;
+    --bg: #F5F6F8;
+    --border: #E1E4E8;
+    --text: #1F2328;
+    --muted: #6B7280;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: var(--purple);
+    color: white;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { margin: 0; font-size: 20px; }
+  header button {
+    background: white;
+    color: var(--purple);
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  #status {
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    display: none;
+  }
+  #status.error { display: block; background: #FDECEA; color: #B3261E; }
+  #status.info { display: block; background: #E8EEFB; color: #1A4FBF; }
+
+  .filters {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .filters select, .filters input {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    vertical-align: top;
+  }
+  th { background: #FAFAFB; color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge.env-Production { background: #FDECEA; color: #B3261E; }
+  .badge.env-Staging { background: #FFF4E5; color: #B7791F; }
+  .badge.env-Development { background: #E8F5E9; color: #2E7D32; }
+  .badge.status-Deployed { background: #E8F5E9; color: #2E7D32; }
+  .badge.status-Planned { background: #E8EEFB; color: #1A4FBF; }
+  .badge.status-In-Progress { background: #FFF4E5; color: #B7791F; }
+  .badge.status-Rolled-Back { background: #FDECEA; color: #B3261E; }
+  .badge.status-Failed { background: #FDECEA; color: #B3261E; }
+
+  .row-actions button {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 5px;
+    margin-right: 4px;
+  }
+  .row-actions .view { color: #1A4FBF; }
+  .row-actions .edit { color: #B7791F; }
+  .row-actions .delete { color: #B3261E; }
+  .row-actions button:hover { background: #F0F1F3; }
+
+  .empty { text-align: center; padding: 40px; color: var(--muted); }
+
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    align-items: center; justify-content: center;
+    padding: 20px;
+    z-index: 50;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 640px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .modal h2 { margin-top: 0; font-size: 18px; }
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .field input, .field select, .field textarea {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .field textarea { min-height: 60px; resize: vertical; }
+  .field .hint { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .field-row { display: flex; gap: 12px; }
+  .field-row .field { flex: 1; }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  .modal-actions button {
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .btn-primary { background: var(--purple); color: white; }
+  .btn-secondary { background: #F0F1F3; color: var(--text); }
+  .btn-danger { background: #B3261E; color: white; }
+
+  .view-field { margin-bottom: 12px; }
+  .view-field .k { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; }
+  .view-field .v { font-size: 14px; margin-top: 2px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>App Updates</h1>
+  <button id="addBtn">+ Add Update</button>
+</header>
+
+<main>
+  <div id="status"></div>
+
+  <div class="filters">
+    <select id="filterEnv">
+      <option value="">All environments</option>
+      <option>Development</option>
+      <option>Production</option>
+    </select>
+    <select id="filterStatus">
+      <option value="">All statuses</option>
+      <option>Planned</option>
+      <option>In Progress</option>
+      <option>Deployed</option>
+      <option>Rolled Back</option>
+      <option>Failed</option>
+    </select>
+    <input id="filterVersion" placeholder="Filter by version..." />
+    <button id="applyFilters" class="btn-secondary" style="border:1px solid var(--border);border-radius:6px;padding:8px 14px;cursor:pointer;background:white;">Filter</button>
+    <button id="clearFilters" style="border:1px solid var(--border);border-radius:6px;padding:8px 14px;cursor:pointer;background:white;">Clear</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Version</th>
+        <th>Environment</th>
+        <th>Title</th>
+        <th>Type</th>
+        <th>Status</th>
+        <th>Date</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+  <div id="emptyState" class="empty" style="display:none;">No update records yet.</div>
+</main>
+
+<!-- Add/Edit modal -->
+<div class="modal-overlay" id="formOverlay">
+  <div class="modal">
+    <h2 id="formTitle">Add Update</h2>
+    <form id="updateForm">
+      <input type="hidden" id="f_id" />
+      <div class="field-row">
+        <div class="field">
+          <label>Version Number *</label>
+          <input id="f_version_number" required />
+        </div>
+        <div class="field">
+          <label>Environment *</label>
+          <select id="f_environment" required>
+            <option value="">Select...</option>
+            <option>Development</option>
+            <option>Production</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Update Date *</label>
+          <input id="f_update_date" type="date" required />
+        </div>
+        <div class="field">
+          <label>Deployment Status</label>
+          <select id="f_deployment_status">
+            <option>Planned</option>
+            <option>In Progress</option>
+            <option selected>Deployed</option>
+            <option>Rolled Back</option>
+            <option>Failed</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Title *</label>
+        <input id="f_title" required />
+      </div>
+
+      <div class="field">
+        <label>Update Type *</label>
+        <select id="f_update_type" required>
+          <option value="">Select...</option>
+          <option>Feature</option>
+          <option>Improvement</option>
+          <option>Bug Fix</option>
+          <option>Security Update</option>
+          <option>Backend Update</option>
+          <option>Database Update</option>
+          <option>Configuration Update</option>
+          <option>Hotfix</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Component(s) *</label>
+        <input id="f_component" placeholder="e.g. Backend, iOS App" />
+        <div class="hint">Comma-separated (e.g. "Backend, iOS App")</div>
+      </div>
+
+      <div class="field">
+        <label>Reason *</label>
+        <textarea id="f_reason" required></textarea>
+      </div>
+
+      <div class="field">
+        <label>Description</label>
+        <textarea id="f_description"></textarea>
+        <div class="hint">Description or Changes Summary below is required (at least one)</div>
+      </div>
+
+      <div class="field">
+        <label>Changes Summary</label>
+        <textarea id="f_changes_summary" placeholder="One change per line"></textarea>
+        <div class="hint">One item per line</div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Jira Ticket ID</label>
+          <input id="f_jira_ticket_id" />
+        </div>
+        <div class="field">
+          <label>Developer</label>
+          <input id="f_developer" />
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Related Dev Version</label>
+          <input id="f_related_dev_version" placeholder="Must match an existing Development record" />
+        </div>
+        <div class="field">
+          <label>Previous Version Reference</label>
+          <input id="f_previous_version_reference" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Technical Notes</label>
+        <textarea id="f_technical_notes"></textarea>
+      </div>
+
+      <div class="field">
+        <label>Rollback Notes</label>
+        <textarea id="f_rollback_notes"></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancelForm">Cancel</button>
+        <button type="submit" class="btn-primary" id="submitForm">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- View modal -->
+<div class="modal-overlay" id="viewOverlay">
+  <div class="modal" id="viewModalContent">
+  </div>
+</div>
+
+<script>
+const API_BASE = 'http://157.245.77.231:5000/api/app-updates';
+
+const tableBody = document.getElementById('tableBody');
+const emptyState = document.getElementById('emptyState');
+const statusEl = document.getElementById('status');
+
+let records = [];
+
+function showStatus(message, type) {
+  statusEl.textContent = message;
+  statusEl.className = type;
+  if (type === 'info') {
+    setTimeout(() => { statusEl.className = ''; }, 3000);
+  }
+}
+
+function slug(s) { return String(s).replace(/\s+/g, '-'); }
+
+async function apiRequest(path, options) {
+  const res = await fetch(API_BASE + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  });
+  let body = null;
+  try { body = await res.json(); } catch (e) {}
+  if (!res.ok) {
+    const message = (body && (body.error || body.message)) || ('Request failed (' + res.status + ')');
+    throw new Error(message);
+  }
+  return body;
+}
+
+async function loadRecords() {
+  showStatus('Loading...', 'info');
+  try {
+    const env = document.getElementById('filterEnv').value;
+    const status = document.getElementById('filterStatus').value;
+    const version = document.getElementById('filterVersion').value.trim();
+    const params = new URLSearchParams();
+    if (env) params.set('environment', env);
+    if (status) params.set('deployment_status', status);
+    if (version) params.set('version', version);
+
+    const qs = params.toString();
+    const result = await apiRequest('/' + (qs ? '?' + qs : ''));
+    records = result.data || [];
+    renderTable();
+    statusEl.className = '';
+  } catch (err) {
+    showStatus('Failed to load: ' + err.message, 'error');
+  }
+}
+
+function renderTable() {
+  tableBody.innerHTML = '';
+  emptyState.style.display = records.length ? 'none' : 'block';
+
+  for (const r of records) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(r.version_number)}</td>
+      <td><span class="badge env-${slug(r.environment)}">${escapeHtml(r.environment)}</span></td>
+      <td>${escapeHtml(r.title)}</td>
+      <td>${escapeHtml(r.update_type)}</td>
+      <td><span class="badge status-${slug(r.deployment_status)}">${escapeHtml(r.deployment_status)}</span></td>
+      <td>${escapeHtml(String(r.update_date).slice(0, 10))}</td>
+      <td class="row-actions">
+        <button class="view" data-id="${r.id}">View</button>
+        <button class="edit" data-id="${r.id}">Edit</button>
+        <button class="delete" data-id="${r.id}">Delete</button>
+      </td>
+    `;
+    tableBody.appendChild(tr);
+  }
+}
+
+function escapeHtml(value) {
+  if (value == null) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// ---- Add/Edit form ----
+const formOverlay = document.getElementById('formOverlay');
+const updateForm = document.getElementById('updateForm');
+const formTitle = document.getElementById('formTitle');
+
+function openAddForm() {
+  updateForm.reset();
+  document.getElementById('f_id').value = '';
+  document.getElementById('f_deployment_status').value = 'Deployed';
+  formTitle.textContent = 'Add Update';
+  formOverlay.classList.add('open');
+}
+
+function openEditForm(record) {
+  document.getElementById('f_id').value = record.id;
+  document.getElementById('f_version_number').value = record.version_number || '';
+  document.getElementById('f_environment').value = record.environment || '';
+  document.getElementById('f_update_date').value = String(record.update_date || '').slice(0, 10);
+  document.getElementById('f_deployment_status').value = record.deployment_status || 'Deployed';
+  document.getElementById('f_title').value = record.title || '';
+  document.getElementById('f_update_type').value = record.update_type || '';
+  document.getElementById('f_component').value = Array.isArray(record.component) ? record.component.join(', ') : (record.component || '');
+  document.getElementById('f_reason').value = record.reason || '';
+  document.getElementById('f_description').value = record.description || '';
+  document.getElementById('f_changes_summary').value = Array.isArray(record.changes_summary) ? record.changes_summary.join('\n') : (record.changes_summary || '');
+  document.getElementById('f_jira_ticket_id').value = record.jira_ticket_id || '';
+  document.getElementById('f_developer').value = record.developer || '';
+  document.getElementById('f_related_dev_version').value = record.related_dev_version || '';
+  document.getElementById('f_previous_version_reference').value = record.previous_version_reference || '';
+  document.getElementById('f_technical_notes').value = record.technical_notes || '';
+  document.getElementById('f_rollback_notes').value = record.rollback_notes || '';
+  formTitle.textContent = 'Edit Update';
+  formOverlay.classList.add('open');
+}
+
+function closeForm() {
+  formOverlay.classList.remove('open');
+}
+
+document.getElementById('addBtn').addEventListener('click', openAddForm);
+document.getElementById('cancelForm').addEventListener('click', closeForm);
+
+updateForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const id = document.getElementById('f_id').value;
+  const componentRaw = document.getElementById('f_component').value.trim();
+  const changesRaw = document.getElementById('f_changes_summary').value.trim();
+
+  const payload = {
+    version_number: document.getElementById('f_version_number').value.trim(),
+    environment: document.getElementById('f_environment').value,
+    update_date: document.getElementById('f_update_date').value,
+    title: document.getElementById('f_title').value.trim(),
+    update_type: document.getElementById('f_update_type').value,
+    deployment_status: document.getElementById('f_deployment_status').value,
+    component: componentRaw ? componentRaw.split(',').map(s => s.trim()).filter(Boolean) : undefined,
+    reason: document.getElementById('f_reason').value.trim(),
+    description: document.getElementById('f_description').value.trim() || undefined,
+    changes_summary: changesRaw ? changesRaw.split('\n').map(s => s.trim()).filter(Boolean) : undefined,
+    jira_ticket_id: document.getElementById('f_jira_ticket_id').value.trim() || null,
+    developer: document.getElementById('f_developer').value.trim() || null,
+    related_dev_version: document.getElementById('f_related_dev_version').value.trim() || null,
+    previous_version_reference: document.getElementById('f_previous_version_reference').value.trim() || null,
+    technical_notes: document.getElementById('f_technical_notes').value.trim() || null,
+    rollback_notes: document.getElementById('f_rollback_notes').value.trim() || null,
+  };
+
+  const submitBtn = document.getElementById('submitForm');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Saving...';
+
+  try {
+    if (id) {
+      await apiRequest('/' + id, { method: 'PATCH', body: JSON.stringify(payload) });
+      showStatus('Update record saved.', 'info');
+    } else {
+      await apiRequest('/', { method: 'POST', body: JSON.stringify(payload) });
+      showStatus('Update record created.', 'info');
+    }
+    closeForm();
+    loadRecords();
+  } catch (err) {
+    alert('Save failed: ' + err.message);
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Save';
+  }
+});
+
+// ---- View modal ----
+const viewOverlay = document.getElementById('viewOverlay');
+const viewModalContent = document.getElementById('viewModalContent');
+
+function openViewModal(record) {
+  const rows = [
+    ['Version', record.version_number],
+    ['Environment', record.environment],
+    ['Update Date', String(record.update_date || '').slice(0, 10)],
+    ['Title', record.title],
+    ['Update Type', record.update_type],
+    ['Deployment Status', record.deployment_status],
+    ['Component(s)', Array.isArray(record.component) ? record.component.join(', ') : record.component],
+    ['Reason', record.reason],
+    ['Description', record.description],
+    ['Changes Summary', Array.isArray(record.changes_summary) ? record.changes_summary.map(c => '• ' + c).join('\n') : record.changes_summary],
+    ['Jira Ticket ID', record.jira_ticket_id],
+    ['Developer', record.developer],
+    ['Related Dev Version', record.related_dev_version],
+    ['Previous Version Reference', record.previous_version_reference],
+    ['Technical Notes', record.technical_notes],
+    ['Rollback Notes', record.rollback_notes],
+    ['Created At', record.created_at],
+    ['Updated At', record.updated_at],
+  ];
+
+  viewModalContent.innerHTML = `
+    <h2>${escapeHtml(record.title)}</h2>
+    ${rows.filter(([, v]) => v).map(([k, v]) => `
+      <div class="view-field">
+        <div class="k">${escapeHtml(k)}</div>
+        <div class="v">${escapeHtml(v)}</div>
+      </div>
+    `).join('')}
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="closeView">Close</button>
+    </div>
+  `;
+  document.getElementById('closeView').addEventListener('click', () => viewOverlay.classList.remove('open'));
+  viewOverlay.classList.add('open');
+}
+
+// ---- Row actions (event delegation) ----
+tableBody.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const record = records.find(r => String(r.id) === String(id));
+  if (!record) return;
+
+  if (btn.classList.contains('view')) {
+    openViewModal(record);
+  } else if (btn.classList.contains('edit')) {
+    openEditForm(record);
+  } else if (btn.classList.contains('delete')) {
+    if (!confirm(`Permanently delete "${record.title}" (v${record.version_number}, ${record.environment})? This cannot be undone.`)) return;
+    try {
+      await apiRequest('/' + id, { method: 'DELETE' });
+      showStatus('Record deleted.', 'info');
+      loadRecords();
+    } catch (err) {
+      alert('Delete failed: ' + err.message);
+    }
+  }
+});
+
+// Close modals on overlay click
+[formOverlay, viewOverlay].forEach(overlay => {
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+});
+
+document.getElementById('applyFilters').addEventListener('click', loadRecords);
+document.getElementById('clearFilters').addEventListener('click', () => {
+  document.getElementById('filterEnv').value = '';
+  document.getElementById('filterStatus').value = '';
+  document.getElementById('filterVersion').value = '';
+  loadRecords();
+});
+
+loadRecords();
+</script>
+
+</body>
+</html>
