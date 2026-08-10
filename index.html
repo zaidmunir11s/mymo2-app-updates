@@ -184,6 +184,10 @@
   <div id="status"></div>
 
   <div class="filters">
+    <select id="apiEnv" title="API backend">
+      <option value="Development">API: Development</option>
+      <option value="Production">API: Production</option>
+    </select>
     <select id="filterEnv">
       <option value="">All environments</option>
       <option>Development</option>
@@ -347,11 +351,15 @@
 </div>
 
 <script>
-const API_BASE = 'http://157.245.77.231:5000/api/app-updates';
+const API_BASES = {
+  Development: 'https://api.dev.track.mymo2.com/api/app-updates',
+  Production: '',
+};
 
 const tableBody = document.getElementById('tableBody');
 const emptyState = document.getElementById('emptyState');
 const statusEl = document.getElementById('status');
+const apiEnvSelect = document.getElementById('apiEnv');
 
 let records = [];
 
@@ -365,8 +373,17 @@ function showStatus(message, type) {
 
 function slug(s) { return String(s).replace(/\s+/g, '-'); }
 
+function getApiBase() {
+  const env = apiEnvSelect.value;
+  const base = API_BASES[env];
+  if (!base) {
+    throw new Error(env + ' API base URL is not configured yet');
+  }
+  return base;
+}
+
 async function apiRequest(path, options) {
-  const res = await fetch(API_BASE + path, {
+  const res = await fetch(getApiBase() + path, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
@@ -601,6 +618,8 @@ document.getElementById('clearFilters').addEventListener('click', () => {
   document.getElementById('filterVersion').value = '';
   loadRecords();
 });
+
+apiEnvSelect.addEventListener('change', loadRecords);
 
 loadRecords();
 </script>
