@@ -110,6 +110,35 @@
 
   .empty { text-align: center; padding: 40px; color: var(--muted); }
 
+  .skeleton {
+    display: inline-block;
+    height: 12px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #ECEEF2 0%, #F7F8FA 45%, #ECEEF2 90%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.2s ease-in-out infinite;
+  }
+  .skeleton.sm { width: 56px; }
+  .skeleton.md { width: 88px; }
+  .skeleton.lg { width: 140px; }
+  .skeleton.xl { width: 180px; }
+  .skeleton.badge {
+    height: 18px;
+    width: 72px;
+    border-radius: 100px;
+  }
+  .skeleton.actions {
+    height: 18px;
+    width: 120px;
+  }
+  tr.skeleton-row td {
+    vertical-align: middle;
+  }
+  @keyframes skeleton-shimmer {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+  }
+
   .modal-overlay {
     display: none;
     position: fixed; inset: 0;
@@ -407,7 +436,7 @@ async function apiRequest(path, options) {
 }
 
 async function loadRecords() {
-  showStatus('Loading...', 'info');
+  showSkeleton();
   try {
     const env = document.getElementById('filterEnv').value;
     const status = document.getElementById('filterStatus').value;
@@ -423,8 +452,27 @@ async function loadRecords() {
     renderTable();
     statusEl.className = '';
   } catch (err) {
+    tableBody.innerHTML = '';
+    emptyState.style.display = 'none';
     showStatus('Failed to load: ' + err.message, 'error');
   }
+}
+
+function showSkeleton(rowCount) {
+  const count = rowCount || 6;
+  emptyState.style.display = 'none';
+  statusEl.className = '';
+  tableBody.innerHTML = Array.from({ length: count }, (_, i) => `
+    <tr class="skeleton-row" aria-hidden="true">
+      <td><span class="skeleton ${i % 2 ? 'sm' : 'md'}"></span></td>
+      <td><span class="skeleton badge"></span></td>
+      <td><span class="skeleton ${i % 3 === 0 ? 'xl' : 'lg'}"></span></td>
+      <td><span class="skeleton md"></span></td>
+      <td><span class="skeleton badge"></span></td>
+      <td><span class="skeleton sm"></span></td>
+      <td><span class="skeleton actions"></span></td>
+    </tr>
+  `).join('');
 }
 
 function renderTable() {
