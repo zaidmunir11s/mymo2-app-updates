@@ -191,6 +191,7 @@
     <select id="filterEnv">
       <option value="">All environments</option>
       <option>Development</option>
+      <option>Staging</option>
       <option>Production</option>
     </select>
     <select id="filterStatus">
@@ -239,6 +240,7 @@
           <select id="f_environment" required>
             <option value="">Select...</option>
             <option>Development</option>
+            <option>Staging</option>
             <option>Production</option>
           </select>
         </div>
@@ -283,7 +285,7 @@
 
       <div class="field">
         <label>Component(s) *</label>
-        <input id="f_component" placeholder="e.g. Backend, iOS App" />
+        <input id="f_component" placeholder="e.g. Backend, iOS App" required />
         <div class="hint">Comma-separated (e.g. "Backend, iOS App")</div>
       </div>
 
@@ -295,13 +297,13 @@
       <div class="field">
         <label>Description</label>
         <textarea id="f_description"></textarea>
-        <div class="hint">Description or Changes Summary below is required (at least one)</div>
+        <div class="hint">At least one of Description or Changes Summary is required</div>
       </div>
 
       <div class="field">
         <label>Changes Summary</label>
         <textarea id="f_changes_summary" placeholder="One change per line"></textarea>
-        <div class="hint">One item per line</div>
+        <div class="hint">One item per line — required if Description is empty</div>
       </div>
 
       <div class="field-row">
@@ -382,6 +384,15 @@ function getApiBase() {
   return base;
 }
 
+function formatApiError(body, status) {
+  if (!body) return 'Request failed (' + status + ')';
+  const details = Array.isArray(body.details)
+    ? body.details.map((d) => d.message).filter(Boolean).join('; ')
+    : '';
+  const base = body.error || body.message || ('Request failed (' + status + ')');
+  return details ? base + ': ' + details : base;
+}
+
 async function apiRequest(path, options) {
   const res = await fetch(getApiBase() + path, {
     headers: { 'Content-Type': 'application/json' },
@@ -390,8 +401,7 @@ async function apiRequest(path, options) {
   let body = null;
   try { body = await res.json(); } catch (e) {}
   if (!res.ok) {
-    const message = (body && (body.error || body.message)) || ('Request failed (' + res.status + ')');
-    throw new Error(message);
+    throw new Error(formatApiError(body, res.status));
   }
   return body;
 }
@@ -495,7 +505,23 @@ updateForm.addEventListener('submit', async (e) => {
 
   const id = document.getElementById('f_id').value;
   const componentRaw = document.getElementById('f_component').value.trim();
-  const changesRaw = document.getElementById('f_changes_summary').value.trim();
+  const description = document.getElementById('f_description').value.trim();
+  const changesSummary = document.getElementById('f_changes_summary').value
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const component = componentRaw
+    ? componentRaw.split(',').map((s) => s.trim()).filter(Boolean)
+    : [];
+
+  if (!component.length) {
+    alert('Component(s) is required (comma-separated list).');
+    return;
+  }
+  if (!description && !changesSummary.length) {
+    alert('Provide at least one of Description or Changes Summary.');
+    return;
+  }
 
   const payload = {
     version_number: document.getElementById('f_version_number').value.trim(),
@@ -504,10 +530,8 @@ updateForm.addEventListener('submit', async (e) => {
     title: document.getElementById('f_title').value.trim(),
     update_type: document.getElementById('f_update_type').value,
     deployment_status: document.getElementById('f_deployment_status').value,
-    component: componentRaw ? componentRaw.split(',').map(s => s.trim()).filter(Boolean) : undefined,
+    component,
     reason: document.getElementById('f_reason').value.trim(),
-    description: document.getElementById('f_description').value.trim() || undefined,
-    changes_summary: changesRaw ? changesRaw.split('\n').map(s => s.trim()).filter(Boolean) : undefined,
     jira_ticket_id: document.getElementById('f_jira_ticket_id').value.trim() || null,
     developer: document.getElementById('f_developer').value.trim() || null,
     related_dev_version: document.getElementById('f_related_dev_version').value.trim() || null,
@@ -515,6 +539,9 @@ updateForm.addEventListener('submit', async (e) => {
     technical_notes: document.getElementById('f_technical_notes').value.trim() || null,
     rollback_notes: document.getElementById('f_rollback_notes').value.trim() || null,
   };
+
+  if (description) payload.description = description;
+  if (changesSummary.length) payload.changes_summary = changesSummary;
 
   const submitBtn = document.getElementById('submitForm');
   submitBtn.disabled = true;
