@@ -157,6 +157,10 @@
     padding: 24px;
   }
   .modal h2 { margin-top: 0; font-size: 18px; }
+  .modal.view-modal {
+    max-width: 760px;
+    padding: 0;
+  }
   .field { margin-bottom: 14px; }
   .field label {
     display: block;
@@ -196,9 +200,96 @@
   .btn-secondary { background: #F0F1F3; color: var(--text); }
   .btn-danger { background: #B3261E; color: white; }
 
-  .view-field { margin-bottom: 12px; }
-  .view-field .k { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; }
-  .view-field .v { font-size: 14px; margin-top: 2px; white-space: pre-wrap; }
+  .view-header {
+    padding: 22px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #FAF8FF 0%, #fff 100%);
+  }
+  .view-header h2 {
+    margin: 0 0 10px;
+    font-size: 18px;
+    line-height: 1.35;
+  }
+  .view-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+  .view-body { padding: 20px 24px 8px; }
+  .view-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .view-stat {
+    background: #F7F8FA;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .view-stat .k {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .view-stat .v {
+    font-size: 14px;
+    margin-top: 4px;
+    font-weight: 600;
+    word-break: break-word;
+  }
+  .view-section {
+    margin-bottom: 16px;
+  }
+  .view-section h3 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .view-section p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .view-section a { color: var(--purple); }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    display: inline-block;
+    background: #F0ECFB;
+    color: #4C2BA8;
+    border-radius: 100px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .change-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .change-list li {
+    background: #F7F8FA;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .view-footer {
+    padding: 8px 24px 20px;
+    display: flex;
+    justify-content: flex-end;
+  }
+  @media (max-width: 640px) {
+    .view-grid { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -374,7 +465,7 @@
 
 <!-- View modal -->
 <div class="modal-overlay" id="viewOverlay">
-  <div class="modal" id="viewModalContent">
+  <div class="modal view-modal" id="viewModalContent">
   </div>
 </div>
 
@@ -614,37 +705,65 @@ updateForm.addEventListener('submit', async (e) => {
 const viewOverlay = document.getElementById('viewOverlay');
 const viewModalContent = document.getElementById('viewModalContent');
 
+function formatDate(value) {
+  if (!value) return '';
+  return String(value).slice(0, 10);
+}
+
+function linkify(text) {
+  const escaped = escapeHtml(text);
+  return escaped.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+}
+
+function sectionHtml(title, inner) {
+  if (!inner) return '';
+  return `<section class="view-section"><h3>${escapeHtml(title)}</h3>${inner}</section>`;
+}
+
 function openViewModal(record) {
-  const rows = [
+  const components = Array.isArray(record.component)
+    ? record.component
+    : (record.component ? String(record.component).split(',').map((s) => s.trim()).filter(Boolean) : []);
+  const changes = Array.isArray(record.changes_summary)
+    ? record.changes_summary
+    : (record.changes_summary ? [record.changes_summary] : []);
+
+  const stats = [
     ['Version', record.version_number],
-    ['Environment', record.environment],
-    ['Update Date', String(record.update_date || '').slice(0, 10)],
-    ['Title', record.title],
-    ['Update Type', record.update_type],
-    ['Deployment Status', record.deployment_status],
-    ['Component(s)', Array.isArray(record.component) ? record.component.join(', ') : record.component],
-    ['Reason', record.reason],
-    ['Description', record.description],
-    ['Changes Summary', Array.isArray(record.changes_summary) ? record.changes_summary.map(c => '• ' + c).join('\n') : record.changes_summary],
-    ['Jira Ticket ID', record.jira_ticket_id],
+    ['Update Date', formatDate(record.update_date)],
     ['Developer', record.developer],
+    ['Jira Ticket', record.jira_ticket_id],
     ['Related Dev Version', record.related_dev_version],
-    ['Previous Version Reference', record.previous_version_reference],
-    ['Technical Notes', record.technical_notes],
-    ['Rollback Notes', record.rollback_notes],
-    ['Created At', record.created_at],
-    ['Updated At', record.updated_at],
-  ];
+    ['Previous Version', record.previous_version_reference],
+  ].filter(([, v]) => v);
 
   viewModalContent.innerHTML = `
-    <h2>${escapeHtml(record.title)}</h2>
-    ${rows.filter(([, v]) => v).map(([k, v]) => `
-      <div class="view-field">
-        <div class="k">${escapeHtml(k)}</div>
-        <div class="v">${escapeHtml(v)}</div>
+    <div class="view-header">
+      <h2>${escapeHtml(record.title)}</h2>
+      <div class="view-badges">
+        ${record.environment ? `<span class="badge env-${slug(record.environment)}">${escapeHtml(record.environment)}</span>` : ''}
+        ${record.update_type ? `<span class="badge status-Planned">${escapeHtml(record.update_type)}</span>` : ''}
+        ${record.deployment_status ? `<span class="badge status-${slug(record.deployment_status)}">${escapeHtml(record.deployment_status)}</span>` : ''}
       </div>
-    `).join('')}
-    <div class="modal-actions">
+    </div>
+    <div class="view-body">
+      ${stats.length ? `<div class="view-grid">${stats.map(([k, v]) => `
+        <div class="view-stat">
+          <div class="k">${escapeHtml(k)}</div>
+          <div class="v">${escapeHtml(v)}</div>
+        </div>`).join('')}</div>` : ''}
+      ${sectionHtml('Component(s)', components.length ? `<div class="chip-row">${components.map((c) => `<span class="chip">${escapeHtml(c)}</span>`).join('')}</div>` : '')}
+      ${sectionHtml('Reason', record.reason ? `<p>${linkify(record.reason)}</p>` : '')}
+      ${sectionHtml('Description', record.description ? `<p>${linkify(record.description)}</p>` : '')}
+      ${sectionHtml('Changes Summary', changes.length ? `<ul class="change-list">${changes.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}</ul>` : '')}
+      ${sectionHtml('Technical Notes', record.technical_notes ? `<p>${linkify(record.technical_notes)}</p>` : '')}
+      ${sectionHtml('Rollback Notes', record.rollback_notes ? `<p>${linkify(record.rollback_notes)}</p>` : '')}
+      ${sectionHtml('Timestamps', (record.created_at || record.updated_at) ? `<p>${[
+        record.created_at ? 'Created ' + escapeHtml(record.created_at) : '',
+        record.updated_at ? 'Updated ' + escapeHtml(record.updated_at) : '',
+      ].filter(Boolean).join('\n')}</p>` : '')}
+    </div>
+    <div class="view-footer">
       <button type="button" class="btn-secondary" id="closeView">Close</button>
     </div>
   `;
